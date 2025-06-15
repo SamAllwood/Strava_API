@@ -76,7 +76,13 @@ with open(csv_path, "w", newline="") as csvfile:
     for s in league:
         avg_pace_str = f"{int(s['average_pace']):02d}:{int((s['average_pace']%1)*60):02d}" if s['average_pace'] > 0 else "-"
         writer.writerow([
-            s['name'], s['activity_count'], s['longest_run']/1000, s['total_distance']/1000,
-            s['total_elevation_gain']/1000, s['average_run_length']/1000, s['total_time']/3600, avg_pace_str
+            s['name'],
+            s['activity_count'],
+            round(s['longest_run']/1000, 1),
+            round(s['total_distance']/1000, 1),
+            round(s['total_elevation_gain']/1000, 1),
+            round(s['average_run_length']/1000, 1),
+            round(s['total_time']/3600),  # Nearest hour
+            avg_pace_str
         ])
 print(f"\nLeague table saved to {csv_path}")
