@@ -20,6 +20,7 @@ shoe_stats = {}
 for shoe_id, shoe in shoes.items():
     shoe_stats[shoe_id] = {
         "name": shoe.get("name", "Unknown"),
+        "retired": shoe.get("retired", False),  # <-- Add retired status
         "longest_run": 0,
         "total_distance": 0,
         "total_elevation_gain": 0,
@@ -58,11 +59,12 @@ for stats in shoe_stats.values():
 league = sorted(shoe_stats.values(), key=lambda x: x["average_run_length"], reverse=True)
 
 # Print league table
-print(f"{'Shoe':30} {'Runs':>5} {'Longest(km)':>12} {'Total Dist(km)':>15} {'Total Elev(km)':>15} {'Avg Run(km)':>12} {'Tot Time(h)':>12} {'Avg Pace':>10}")
-print("-" * 120)
+print(f"{'Shoe':30} {'Retired':>8} {'Runs':>5} {'Longest(km)':>12} {'Total Dist(km)':>15} {'Total Elev(km)':>15} {'Avg Run(km)':>12} {'Tot Time(h)':>12} {'Avg Pace':>10}")
+print("-" * 130)
 for s in league:
     avg_pace_str = f"{int(s['average_pace']):02d}:{int((s['average_pace']%1)*60):02d}" if s['average_pace'] > 0 else "-"
-    print(f"{s['name'][:30]:30} {s['activity_count']:5} {s['longest_run']/1000:12.2f} {s['total_distance']/1000:15.2f} {s['total_elevation_gain']/1000:15.2f} {s['average_run_length']/1000:12.2f} {s['total_time']/3600:12.2f} {avg_pace_str:>10}")
+    retired_str = "Yes" if s.get('retired') else "No"
+    print(f"{s['name'][:30]:30} {retired_str:>8} {s['activity_count']:5} {s['longest_run']/1000:12.2f} {s['total_distance']/1000:15.2f} {s['total_elevation_gain']/1000:15.2f} {s['average_run_length']/1000:12.2f} {s['total_time']/3600:12.2f} {avg_pace_str:>10}")
 
 # Optionally, save league table to CSV
 import csv
@@ -70,13 +72,15 @@ csv_path = os.path.join(script_dir, "shoe_league_table.csv")
 with open(csv_path, "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow([
-        "Shoe", "Runs", "Longest Run (km)", "Total Distance (km)", "Total Elevation Gain (km)",
+        "Shoe", "Retired", "Runs", "Longest Run (km)", "Total Distance (km)", "Total Elevation Gain (km)",
         "Average Run Length (km)", "Total Time (h)", "Average Pace (min/km)"
     ])
     for s in league:
         avg_pace_str = f"{int(s['average_pace']):02d}:{int((s['average_pace']%1)*60):02d}" if s['average_pace'] > 0 else "-"
+        retired_str = "Yes" if s.get('retired') else "No"
         writer.writerow([
             s['name'],
+            retired_str,
             s['activity_count'],
             round(s['longest_run']/1000, 1),
             round(s['total_distance']/1000, 1),

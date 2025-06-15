@@ -73,10 +73,20 @@ def get_gear_ids(athlete_json):
     # Extract bike gear IDs
     for bike in athlete_json.get("bikes", []):
         gear_ids.append(bike.get("id"))
+        print(f"Bike: {bike.get('name')} (retired: {bike.get('retired', False)})")
     # Extract shoe gear IDs
     for shoe in athlete_json.get("shoes", []):
         gear_ids.append(shoe.get("id"))
+        print(f"Shoe: {shoe.get('name')} (retired: {shoe.get('retired', False)})")
     return gear_ids
+
+def get_all_gear_ids_from_activities(activities):
+    gear_ids = set()
+    for activity in activities:
+        gear_id = activity.get("gear_id")
+        if gear_id:
+            gear_ids.add(gear_id)
+    return list(gear_ids)
 
 # Example usage:
 if __name__ == "__main__":
@@ -89,12 +99,22 @@ if __name__ == "__main__":
     import pprint
     pprint.pprint(athlete)
     gear_ids = get_gear_ids(athlete)
-    print("Gear IDs:", gear_ids)
+    print("Gear IDs from athlete profile:", gear_ids)
     print(f"Athlete: {athlete.get('firstname', '')} {athlete.get('lastname', '')} (id: {athlete.get('id', '')})")
-    
-    # Save gear IDs to a JSON file in the same directory as this script
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    activities_path = os.path.join(script_dir, "activities.json")
     gear_path = os.path.join(script_dir, "gear_ids.json")
+
+    # If activities.json exists, extract gear IDs from activities
+    if os.path.exists(activities_path):
+        with open(activities_path, "r") as f:
+            activities = json.load(f)
+        gear_ids = get_all_gear_ids_from_activities(activities)
+        print("All gear IDs from activities:", gear_ids)
+    else:
+        print("activities.json not found. Using gear IDs from athlete profile.")
+
     with open(gear_path, "w") as f:
         json.dump(gear_ids, f)
     print(f"Gear IDs saved to {gear_path}")

@@ -20,6 +20,7 @@ bike_stats = {}
 for bike_id, bike in bikes.items():
     bike_stats[bike_id] = {
         "name": bike.get("name", "Unknown"),
+        "retired": bike.get("retired", False),  # <-- Add retired status
         "longest_ride": 0,
         "total_distance": 0,
         "total_elevation_gain": 0,
@@ -70,13 +71,14 @@ totals = {
 }
 
 # Print league table
-print(f"{'Bike':30} {'Rides':>5} {'Longest(km)':>12} {'Total Dist(km)':>15} {'Total Elev(km)':>15} {'Avg Ride(km)':>12} {'Tot Time(h)':>12} {'Avg Speed':>10}")
-print("-" * 120)
+print(f"{'Bike':30} {'Retired':>8} {'Rides':>5} {'Longest(km)':>12} {'Total Dist(km)':>15} {'Total Elev(km)':>15} {'Avg Ride(km)':>12} {'Tot Time(h)':>12} {'Avg Speed':>10}")
+print("-" * 130)
 for s in league:
-    print(f"{s['name'][:30]:30} {s['activity_count']:5} {s['longest_ride']/1000:12.2f} {s['total_distance']/1000:15.2f} {s['total_elevation_gain']/1000:15.2f} {s['average_ride_length']:12.2f} {s['total_time']/3600:12.2f} {s['average_speed']:10.2f}")
+    retired_str = "Yes" if s.get('retired') else "No"
+    print(f"{s['name'][:30]:30} {retired_str:>8} {s['activity_count']:5} {s['longest_ride']/1000:12.2f} {s['total_distance']/1000:15.2f} {s['total_elevation_gain']/1000:15.2f} {s['average_ride_length']:12.2f} {s['total_time']/3600:12.2f} {s['average_speed']:10.2f}")
 # Print totals row
-print("-" * 120)
-print(f"{totals['name']:30} {totals['activity_count']:5} {totals['longest_ride']/1000:12.2f} {totals['total_distance']/1000:15.2f} {totals['total_elevation_gain']/1000:15.2f} {totals['average_ride_length']:12.2f} {totals['total_time']/3600:12.2f} {totals['average_speed']:10.2f}")
+print("-" * 130)
+print(f"{'TOTAL':30} {'':>8} {totals['activity_count']:5} {totals['longest_ride']/1000:12.2f} {totals['total_distance']/1000:15.2f} {totals['total_elevation_gain']/1000:15.2f} {totals['average_ride_length']:12.2f} {totals['total_time']/3600:12.2f} {totals['average_speed']:10.2f}")
 
 # Optionally, save league table to CSV
 import csv
@@ -84,12 +86,14 @@ csv_path = os.path.join(script_dir, "bike_league_table.csv")
 with open(csv_path, "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow([
-        "Bike", "Rides", "Longest Ride (km)", "Total Distance (km)", "Total Elevation Gain (km)",
+        "Bike", "Retired", "Rides", "Longest Ride (km)", "Total Distance (km)", "Total Elevation Gain (km)",
         "Average Ride Length (km)", "Total Time (h)", "Average Speed (km/h)"
     ])
     for s in league:
+        retired_str = "Yes" if s.get('retired') else "No"
         writer.writerow([
             s['name'],
+            retired_str,
             s['activity_count'],
             round(s['longest_ride']/1000, 1),
             round(s['total_distance']/1000, 1),
@@ -100,7 +104,8 @@ with open(csv_path, "w", newline="") as csvfile:
         ])
     # Write totals row
     writer.writerow([
-        totals['name'],
+        'TOTAL',
+        '',
         totals['activity_count'],
         round(totals['longest_ride']/1000, 1),
         round(totals['total_distance']/1000, 1),
