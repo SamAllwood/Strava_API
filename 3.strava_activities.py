@@ -36,13 +36,16 @@ def get_new_activities(access_token, after_datetime):
     page = 1
     per_page = 200
     max_pages = 20
-    # Convert datetime to epoch seconds for Strava API 'after' param
-    after_epoch = int(after_datetime.timestamp())
+    params = {'per_page': per_page, 'page': page}
+    if after_datetime is not None:
+        after_epoch = int(after_datetime.timestamp())
+        params['after'] = after_epoch
     while page <= max_pages:
+        params['page'] = page
         response = requests.get(
             url='https://www.strava.com/api/v3/athlete/activities',
             headers={'Authorization': f'Bearer {access_token}'},
-            params={'per_page': per_page, 'page': page, 'after': after_epoch}
+            params=params
         )
         activities = response.json()
         if not isinstance(activities, list) or not activities:
@@ -70,18 +73,28 @@ def main():
             most_recent_dt = datetime(1970, 1, 1)
     else:
         existing_activities = []
+        # If no file, fetch ALL activities by setting 'after' to 0 (epoch)
         most_recent_dt = datetime(1970, 1, 1)
 
     athlete = get_athlete(access_token)
     print(f"Athlete: {athlete.get('firstname', '')} {athlete.get('lastname', '')} (id: {athlete.get('id', '')})")
-    new_activities = get_new_activities(access_token, most_recent_dt)
+    if not existing_activities:
+        # No after parameter, fetch all activities
+        new_activities = get_new_activities(access_token, None)
+    else:
+        new_activities = get_new_activities(access_token, most_recent_dt)
     print(f"\nFound {len(new_activities)} new activities since {most_recent_dt.isoformat()}.")
 
-    if new_activities:
+    # If no activities.json or it's empty, just use new_activities as the full list
+    if not existing_activities and new_activities:
+        unique_activities = sorted(new_activities, key=lambda x: x.get("start_date_local", x.get("start_date", "")), reverse=True)
+        with open(json_path, "w") as f:
+            json.dump(unique_activities, f, indent=2)
+        print(f"Created activities.json with {len(unique_activities)} activities.")
+    elif new_activities:
         all_activities = existing_activities + new_activities
         # Remove duplicates by activity id
         unique_activities = {a['id']: a for a in all_activities}.values()
-        # Optionally, sort by start_date_local or id
         unique_activities = sorted(unique_activities, key=lambda x: x.get("start_date_local", x.get("start_date", "")), reverse=True)
         with open(json_path, "w") as f:
             json.dump(unique_activities, f, indent=2)
