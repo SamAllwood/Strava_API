@@ -73,7 +73,7 @@ def exchange_code_for_tokens(client_id, client_secret, code):
         print("\nNo scope returned in response.")
     if 'refresh_token' in response_data:
         save_tokens_to_env(response_data['access_token'], response_data['refresh_token'])
-        print("\nSave your refresh_token and access_token for future use!")
+        print("\nYour refresh_token and access_tokens are saved for future use!")
     else:
         print("\nError exchanging code for tokens.")
 

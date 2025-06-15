@@ -2,6 +2,7 @@ import requests
 import json
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 
 load_dotenv()  # Loads variables from .env into environment
 
@@ -30,38 +31,63 @@ def get_athlete(access_token):
         raise Exception("Failed to fetch athlete data")
     return data
 
-def get_all_activities(access_token):
-    all_activities = []
+def get_new_activities(access_token, after_datetime):
+    all_new_activities = []
     page = 1
-    per_page = 200  # Strava's max per page
-    max_pages = 20  # Only download the first 20 pages
+    per_page = 200
+    max_pages = 20
+    # Convert datetime to epoch seconds for Strava API 'after' param
+    after_epoch = int(after_datetime.timestamp())
     while page <= max_pages:
         response = requests.get(
-            url='https://www.strava.com/api/v3/athlete/activities?per_page=200',
+            url='https://www.strava.com/api/v3/athlete/activities',
             headers={'Authorization': f'Bearer {access_token}'},
-            params={'per_page': per_page, 'page': page}
+            params={'per_page': per_page, 'page': page, 'after': after_epoch}
         )
         activities = response.json()
-        if not isinstance(activities, list):
-            print("Unexpected response:", activities)
+        if not isinstance(activities, list) or not activities:
             break
-        all_activities.extend(activities)
+        all_new_activities.extend(activities)
         page += 1
-    return all_activities
+    return all_new_activities
 
 def main():
-    athlete = get_athlete(access_token)
-    print(f"Athlete: {athlete.get('firstname', '')} {athlete.get('lastname', '')} (id: {athlete.get('id', '')})")
-    activities = get_all_activities(access_token)
-    print(f"\nShowing {min(5, len(activities))} of {len(activities)} activities:")
-    for activity in activities[:5]:  # Show only first 5
-        print(f"- {activity.get('name')} | {activity.get('distance')}m | {activity.get('start_date_local')}")
-    # Save all activities to a JSON file in the same directory as this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
     json_path = os.path.join(script_dir, "activities.json")
-    with open(json_path, "w") as f:
-        json.dump(activities, f, indent=2)
-    print(f"\nAll activities saved to {json_path}")
-    
+    # Load existing activities if file exists
+    if os.path.exists(json_path):
+        with open(json_path, "r") as f:
+            existing_activities = json.load(f)
+        # Find the most recent start_date_local
+        if existing_activities:
+            most_recent = max(
+                existing_activities,
+                key=lambda x: x.get("start_date_local", x.get("start_date", "1970-01-01T00:00:00Z"))
+            )
+            most_recent_date = most_recent.get("start_date_local", most_recent.get("start_date"))
+            most_recent_dt = datetime.strptime(most_recent_date[:19], "%Y-%m-%dT%H:%M:%S")
+        else:
+            most_recent_dt = datetime(1970, 1, 1)
+    else:
+        existing_activities = []
+        most_recent_dt = datetime(1970, 1, 1)
+
+    athlete = get_athlete(access_token)
+    print(f"Athlete: {athlete.get('firstname', '')} {athlete.get('lastname', '')} (id: {athlete.get('id', '')})")
+    new_activities = get_new_activities(access_token, most_recent_dt)
+    print(f"\nFound {len(new_activities)} new activities since {most_recent_dt.isoformat()}.")
+
+    if new_activities:
+        all_activities = existing_activities + new_activities
+        # Remove duplicates by activity id
+        unique_activities = {a['id']: a for a in all_activities}.values()
+        # Optionally, sort by start_date_local or id
+        unique_activities = sorted(unique_activities, key=lambda x: x.get("start_date_local", x.get("start_date", "")), reverse=True)
+        with open(json_path, "w") as f:
+            json.dump(unique_activities, f, indent=2)
+        print(f"Added {len(new_activities)} new activities. Total now: {len(unique_activities)}")
+    else:
+        print("No new activities to add.")
+
 if __name__ == '__main__':
     main()
