@@ -35,7 +35,7 @@ for activity in activities:
     if gear_id in shoe_stats:
         dist = activity.get("distance", 0)
         elev = activity.get("total_elevation_gain", 0)
-        time = activity.get("elapsed_time", 0)
+        time = activity.get("moving_time", 0)  # <-- updated to moving_time
         shoe_stats[gear_id]["total_distance"] += dist
         shoe_stats[gear_id]["total_elevation_gain"] += elev
         shoe_stats[gear_id]["longest_run"] = max(shoe_stats[gear_id]["longest_run"], dist)
