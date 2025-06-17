@@ -11,6 +11,7 @@ client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
 
 def fetch_activities(json_path):
+    access_token = os.environ.get('STRAVA_ACCESS_TOKEN')
     # Download all activities if file doesn't exist, else only new ones
     if os.path.exists(json_path):
         with open(json_path, "r") as f:
@@ -23,7 +24,7 @@ def fetch_activities(json_path):
             most_recent_date = most_recent.get("start_date_local", most_recent.get("start_date"))
             most_recent_dt = datetime.strptime(most_recent_date[:19], "%Y-%m-%dT%H:%M:%S")
         else:
-            most_recent_dt = datetime(1970, 1, 1)
+            most_recent_dt = None  # None means fetch all
     else:
         existing_activities = []
         most_recent_dt = None  # None means fetch all
@@ -43,7 +44,20 @@ def fetch_activities(json_path):
                 headers={'Authorization': f'Bearer {access_token}'},
                 params=params
             )
-            activities = response.json()
+            # --- Check for access token errors ---
+            if response.status_code == 401:
+                print("Error: Unauthorized. Your access token is invalid or expired.")
+                print("Response:", response.text)
+                raise Exception("Access token failed. Please refresh your token.")
+            try:
+                activities = response.json()
+            except Exception:
+                print("Failed to parse JSON. Response text:")
+                print(response.text)
+                raise
+            if isinstance(activities, dict) and activities.get("errors"):
+                print("Strava API error:", activities)
+                raise Exception("Access token failed or other API error.")
             if not isinstance(activities, list) or not activities:
                 break
             all_new_activities.extend(activities)
@@ -67,6 +81,7 @@ def fetch_activities(json_path):
         print("No new activities to add.")
 
 def extract_gear_ids_from_activities(activities_path, gear_ids_path):
+    access_token = os.environ.get('STRAVA_ACCESS_TOKEN')
     with open(activities_path, "r") as f:
         activities = json.load(f)
     gear_ids = set()
@@ -79,6 +94,7 @@ def extract_gear_ids_from_activities(activities_path, gear_ids_path):
     print(f"Extracted {len(gear_ids)} gear IDs from activities.")
 
 def fetch_gear_details(gear_ids_path, all_gear_path):
+    access_token = os.environ.get('STRAVA_ACCESS_TOKEN')
     with open(gear_ids_path, "r") as f:
         gear_ids = json.load(f)
     all_gear = []
@@ -321,3 +337,59 @@ def refresh_access_token(client_id, client_secret, refresh_token):
         return tokens["access_token"], tokens["refresh_token"]
     else:
         raise Exception(f"Failed to refresh token: {tokens}")
+
+def exchange_code_for_tokens(client_id, client_secret, code):
+    response = requests.post(
+        url='https://www.strava.com/oauth/token',
+        data={
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'code': code,
+            'grant_type': 'authorization_code'
+        }
+    )
+    tokens = response.json()
+    if 'access_token' in tokens and 'refresh_token' in tokens:
+        print("Access Token:", tokens['access_token'])
+        print("Refresh Token:", tokens['refresh_token'])
+        # Directly update .env file
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path = os.path.join(script_dir, ".env")
+        # Read current .env
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+        else:
+            lines = []
+        # Prepare new lines, replacing or removing as needed
+        new_lines = []
+        found_access = found_refresh = False
+        for line in lines:
+            if line.startswith("STRAVA_ACCESS_TOKEN="):
+                new_lines.append(f"STRAVA_ACCESS_TOKEN={tokens['access_token']}\n")
+                found_access = True
+            elif line.startswith("STRAVA_REFRESH_TOKEN="):
+                new_lines.append(f"STRAVA_REFRESH_TOKEN={tokens['refresh_token']}\n")
+                found_refresh = True
+            else:
+                new_lines.append(line)
+        if not found_access:
+            new_lines.append(f"STRAVA_ACCESS_TOKEN={tokens['access_token']}\n")
+        if not found_refresh:
+            new_lines.append(f"STRAVA_REFRESH_TOKEN={tokens['refresh_token']}\n")
+        # Write back to .env
+        with open(env_path, "w") as f:
+            f.writelines(new_lines)
+        print(".env file updated with new tokens.")
+        return tokens['access_token'], tokens['refresh_token']
+    else:
+        print("Error exchanging code:", tokens)
+        return None, None
+
+# Usage (first time only)
+client_id = os.getenv('CLIENT_ID')
+client_secret = os.getenv('CLIENT_SECRET')
+authorization_code = os.getenv('AUTHORIZATION_CODE')
+if authorization_code:
+    access_token, refresh_token = exchange_code_for_tokens(client_id, client_secret, authorization_code)
+    # Save tokens and remove AUTHORIZATION_CODE from .env after first use
