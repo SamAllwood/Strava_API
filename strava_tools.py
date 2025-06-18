@@ -70,6 +70,7 @@ def fetch_activities(json_path):
         with open(json_path, "w") as f:
             json.dump(unique_activities, f, indent=2)
         print(f"Created activities.json with {len(unique_activities)} activities.")
+        return len(new_activities)
     elif new_activities:
         all_activities = existing_activities + new_activities
         unique_activities = {a['id']: a for a in all_activities}.values()
@@ -77,8 +78,10 @@ def fetch_activities(json_path):
         with open(json_path, "w") as f:
             json.dump(unique_activities, f, indent=2)
         print(f"Added {len(new_activities)} new activities. Total now: {len(unique_activities)}")
+        return len(new_activities)
     else:
         print("No new activities to add.")
+        return 0
 
 def extract_gear_ids_from_activities(activities_path, gear_ids_path):
     access_token = os.environ.get('STRAVA_ACCESS_TOKEN')
@@ -173,8 +176,8 @@ def combine_shoes(all_gear_path, activities_path, output_csv):
         else:
             stats["first_use_str"] = "-"
 
-    # Create league table sorted by average_run_length
-    league = sorted(shoe_stats.values(), key=lambda x: x["average_run_length"], reverse=True)
+    # Create league table sorted by total_distance (descending)
+    league = sorted(shoe_stats.values(), key=lambda x: x["total_distance"], reverse=True)
 
     # Print league table
     print(f"{'Shoe':30} {'Retired':>8} {'Runs':>5} {'First Use':>10} {'Longest(km)':>12} {'Total Dist(km)':>15} {'Total Elev(km)':>15} {'Avg Run(km)':>12} {'Tot Time(h)':>12} {'Avg Pace':>10}")
@@ -332,9 +335,9 @@ def refresh_access_token(client_id, client_secret, refresh_token):
         }
     )
     tokens = response.json()
-    if "access_token" in tokens and "refresh_token" in tokens:
-        # Optionally update your .env or a local file with new tokens
-        return tokens["access_token"], tokens["refresh_token"]
+    print("Tokens response from Strava:\n", json.dumps(tokens, indent=2))  # <-- Add this line
+    if "access_token" in tokens and "refresh_token" in tokens and "expires_at" in tokens:
+        return tokens["access_token"], tokens["refresh_token"], tokens["expires_at"]
     else:
         raise Exception(f"Failed to refresh token: {tokens}")
 
@@ -349,7 +352,7 @@ def exchange_code_for_tokens(client_id, client_secret, code):
         }
     )
     tokens = response.json()
-    if 'access_token' in tokens and 'refresh_token' in tokens:
+    if 'access_token' in tokens and 'refresh_token' in tokens and 'expires_at' in tokens:
         print("Access Token:", tokens['access_token'])
         print("Refresh Token:", tokens['refresh_token'])
         # Directly update .env file
@@ -363,7 +366,7 @@ def exchange_code_for_tokens(client_id, client_secret, code):
             lines = []
         # Prepare new lines, replacing or removing as needed
         new_lines = []
-        found_access = found_refresh = False
+        found_access = found_refresh = found_expiry = False
         for line in lines:
             if line.startswith("STRAVA_ACCESS_TOKEN="):
                 new_lines.append(f"STRAVA_ACCESS_TOKEN={tokens['access_token']}\n")
@@ -371,20 +374,27 @@ def exchange_code_for_tokens(client_id, client_secret, code):
             elif line.startswith("STRAVA_REFRESH_TOKEN="):
                 new_lines.append(f"STRAVA_REFRESH_TOKEN={tokens['refresh_token']}\n")
                 found_refresh = True
+            elif line.startswith("STRAVA_EXPIRES_AT="):
+                new_lines.append(f"STRAVA_EXPIRES_AT={tokens['expires_at']}\n")
+                found_expiry = True
+            elif line.startswith("AUTHORIZATION_CODE="):
+                continue
             else:
                 new_lines.append(line)
         if not found_access:
             new_lines.append(f"STRAVA_ACCESS_TOKEN={tokens['access_token']}\n")
         if not found_refresh:
             new_lines.append(f"STRAVA_REFRESH_TOKEN={tokens['refresh_token']}\n")
+        if not found_expiry:
+            new_lines.append(f"STRAVA_EXPIRES_AT={tokens['expires_at']}\n")
         # Write back to .env
         with open(env_path, "w") as f:
             f.writelines(new_lines)
-        print(".env file updated with new tokens.")
-        return tokens['access_token'], tokens['refresh_token']
+        print(".env file updated with new tokens and expiry.")
+        return tokens['access_token'], tokens['refresh_token'], tokens['expires_at']
     else:
         print("Error exchanging code:", tokens)
-        return None, None
+        return None, None, None
 
 # Usage (first time only)
 client_id = os.getenv('CLIENT_ID')
